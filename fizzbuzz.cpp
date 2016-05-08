@@ -6,16 +6,15 @@ enum {
 	BUZZ = 1,
 	FIZZ_BUZZ = 2,
 	NUM = 3,
-	LAST = 4,
+	PARSE_NUM = 4,
+	LAST = 5,
+	COUNT = 6,
 };
-
-constexpr char digits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-			    'a', 'b', 'c', 'd', 'e', 'f' };
 
 /*
   if (start > end)
     return LAST;
-  else if (start % 3 == 0 && start % 5 == 0)
+  else if (start % 15 == 0)
     return FIZZ_BUZZ;
   else if (start % 3 == 0)
     return FIZZ;
@@ -25,18 +24,12 @@ constexpr char digits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
     return NUM
  */
 #define FIZZ_BUZZ_TYPE(start, end) (((start) > (end)) ? LAST :		\
-		((start) % 3 == 0 && (start) % 5 == 0) ? FIZZ_BUZZ :	\
+		((start) % 15 == 0) ? FIZZ_BUZZ :			\
 		((start) % 3 == 0) ? FIZZ :				\
 		((start) % 5 == 0) ? BUZZ : NUM)
 
-#define GET_DIGIT(num, digit) (((num) >> (digit) * 4) & 0x0F)
-
 /* call this */
-#define FIZZ_BUZZ(start, end) fizz_buzz_impl<-1, -1, (start), (end)>::value
-
-#define DIGITS_IN_X(x) (sizeof((x)) * 2)
-
-#define ARRAY_SIZE(x) (sizeof((x)) / sizeof((x)[0]))
+#define FIZZ_BUZZ(start, end) fizz_buzz_impl<COUNT, 0, (start), (end)>::value
 
 #define FIZZ_STR 'F', 'i', 'z', 'z'
 #define BUZZ_STR 'B', 'u', 'z', 'z'
@@ -51,19 +44,33 @@ const char string<chars...>::value[] = {
 	chars...
 };
 
-#define FIZZ_BUZZ_IMPL(type, str...)							\
-	template<int digit, uint16_t start, uint16_t end, char... chars> 		\
-	struct fizz_buzz_impl<type, digit, start, end, chars...> :			\
-		fizz_buzz_impl<FIZZ_BUZZ_TYPE(start + 1, end), DIGITS_IN_X(start) - 1, 	\
-			       start + 1, end, chars..., str, '\n'> {			\
-											\
+/* 423532 -> 235324 */
+template<uint64_t integer, uint64_t reversed>
+struct reverse_integer : reverse_integer<integer / 10,
+					 reversed * 10 + integer % 10>
+{
+
+};
+
+template<uint64_t reversed>
+struct reverse_integer<0, reversed>
+{
+	static constexpr uint64_t value = reversed;
+};
+
+#define FIZZ_BUZZ_IMPL(type, type_str...)					\
+	template<uint16_t num, uint16_t start, uint16_t end, char... chars> 	\
+	struct fizz_buzz_impl<type, num, start, end, chars...> :		\
+		fizz_buzz_impl<FIZZ_BUZZ_TYPE(start + 1, end), num, 		\
+			       start + 1, end, chars..., type_str, '\n'> {	\
+										\
 	}
 
 
 /* Starting point */
-template<uint16_t type, int digit, uint16_t start, uint16_t end, char... chars>
+template<uint16_t type, uint16_t num, uint16_t start, uint16_t end, char... chars>
 struct fizz_buzz_impl :
-	fizz_buzz_impl<FIZZ_BUZZ_TYPE(start, end), DIGITS_IN_X(start) - 1,
+	fizz_buzz_impl<FIZZ_BUZZ_TYPE(start, end), num,
 		       start, end, chars...> {
 	static_assert(start <= end, "End cannot be smaller than start!");
 };
@@ -76,25 +83,32 @@ FIZZ_BUZZ_IMPL(BUZZ, BUZZ_STR);
 FIZZ_BUZZ_IMPL(FIZZ_BUZZ, FIZZ_STR, BUZZ_STR);
 
 /* Start parsing digits */
-template<int digit, uint16_t start, uint16_t end, char... chars>
-struct fizz_buzz_impl<NUM, digit, start, end, chars...> :
-	fizz_buzz_impl<NUM, digit - 1, start, end, chars...,
-		       digits[GET_DIGIT(start, digit)]> {
-	static_assert(GET_DIGIT(start, digit) < ARRAY_SIZE(digits),
-		"GET_DIGIT(start, digit) >= ARRAY_SIZE(digits)");
+template<uint16_t num, uint16_t start, uint16_t end, char... chars>
+struct fizz_buzz_impl<NUM, num, start, end, chars...> :
+	fizz_buzz_impl<PARSE_NUM, reverse_integer<start, 0>::value, start, end,
+		       chars...> {
+
+};
+
+/* Parse one digit */
+template<uint16_t num, uint16_t start, uint16_t end, char... chars>
+struct fizz_buzz_impl<PARSE_NUM, num, start, end, chars...> :
+	fizz_buzz_impl<PARSE_NUM, num / 10, start, end, chars...,
+		       '0' + num % 10> {
+
 };
 
 /* All digits parsed */
 template<uint16_t start, uint16_t end, char... chars>
-struct fizz_buzz_impl<NUM, -1, start, end, chars...> :
-	fizz_buzz_impl<FIZZ_BUZZ_TYPE(start + 1, end), DIGITS_IN_X(start) - 1,
-	start + 1, end, chars..., '\n'> {
+struct fizz_buzz_impl<PARSE_NUM, 0, start, end, chars...> :
+	fizz_buzz_impl<FIZZ_BUZZ_TYPE(start+1, end), 0, start + 1, end,
+		       chars..., '\n'> {
 
 };
 
 /* Construct the string */
-template<int digit, uint16_t start, uint16_t end, char... chars>
-struct fizz_buzz_impl<LAST, digit, start, end, chars...> :
+template<uint16_t num, uint16_t start, uint16_t end, char... chars>
+struct fizz_buzz_impl<LAST, num, start, end, chars...> :
 	string<chars..., '\0'> {
 
 };
